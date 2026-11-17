@@ -1,0 +1,1748 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<title>安全接入</title>
+<style>
+[hidden], dialog:not([open]) { display: none !important; }
+.od-icon { display: inline-block; flex: none; width: var(--od-icon-size, 1em); height: var(--od-icon-size, 1em); }
+.od-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.od-truncate { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+:root {
+  --bg: #ffffff;
+  --surface: #f5f5f7;
+  --surface-warm: #fbfbfd;
+
+  --fg: #1d1d1f;
+  --fg-2: #424245;
+  --muted: #6e6e73;
+  --meta: #86868b;
+
+  --border: #d2d2d7;
+  --border-soft: #e8e8ed;
+
+  --accent: #0071e3;
+  --accent-on: #ffffff;
+  --accent-hover: #0077ed;
+  --accent-active: #0066cc;
+
+  --success: #16a34a;
+  --warn:    #eab308;
+  --danger:  #dc2626;
+
+  --font-display:
+    "SF Pro Display", "SF Pro Icons", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-body:
+    "SF Pro Text", "SF Pro Icons", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono:
+    "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Monaco, Consolas, monospace;
+
+  --text-xs:   12px;
+  --text-sm:   14px;
+  --text-base: 17px;
+  --text-lg:   21px;
+  --text-xl:   28px;
+  --text-2xl:  40px;
+  --text-3xl:  56px;
+  --text-4xl:  80px;
+
+  --leading-body:  1.47;
+  --leading-tight: 1.05;
+
+  --tracking-display: -0.015em;
+
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-12: 48px;
+
+  --section-y-desktop: 100px;
+  --section-y-tablet:  64px;
+  --section-y-phone:   40px;
+
+  --radius-sm:   8px;
+  --radius-md:   12px;
+  --radius-lg:   18px;
+  --radius-pill: 980px;
+
+  --elev-flat:   none;
+  --elev-ring:   0 0 0 1px var(--border);
+  --elev-raised: 0 12px 32px rgba(0, 0, 0, 0.08);
+
+  --focus-ring: 0 0 0 4px color-mix(in oklab, var(--accent), transparent 65%);
+
+  --motion-fast:   150ms;
+  --motion-base:   220ms;
+  --ease-standard: cubic-bezier(0.28, 0, 0.22, 1);
+
+  --container-max:            1024px;
+  --container-gutter-desktop: 22px;
+  --container-gutter-tablet:  18px;
+  --container-gutter-phone:   16px;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--surface);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, p { margin: 0; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[role="switch"]:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.app {
+  position: relative;
+  width: min(880px, 100%);
+  height: clamp(520px, calc(100vh - 48px), 660px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 0 1px var(--border), 0 24px 64px rgba(0, 0, 0, 0.10);
+}
+
+.titlebar {
+  flex: none;
+  height: 52px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.brand-name {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.brand-sub {
+  padding-left: 10px;
+  border-left: 1px solid var(--border-soft);
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--meta); }
+.chip.on {
+  color: #0c6a30;
+  background: color-mix(in oklab, var(--success), transparent 90%);
+}
+.chip.on .dot { background: var(--success); }
+
+.app-body { flex: 1; min-height: 0; display: flex; }
+
+.screen { flex: 1; min-width: 0; min-height: 0; }
+
+.login {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+}
+.login-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  padding: 22px 14px 14px;
+  background: var(--surface);
+  border-right: 1px solid var(--border-soft);
+  overflow-y: auto;
+}
+.rail-label {
+  padding: 0 12px;
+  margin-bottom: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.method-list { display: flex; flex-direction: column; gap: 2px; }
+.method {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--fg-2);
+  text-align: left;
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard);
+}
+.method:hover { background: color-mix(in oklab, var(--bg), transparent 45%); }
+.method[aria-pressed="true"] {
+  background: var(--bg);
+  color: var(--fg);
+  box-shadow: var(--elev-ring);
+}
+.method:disabled { cursor: progress; opacity: 0.6; }
+.method-icon {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--bg), transparent 35%);
+  color: var(--muted);
+}
+.method[aria-pressed="true"] .method-icon { color: var(--fg); background: var(--bg); }
+.method-text { display: grid; gap: 1px; min-width: 0; }
+.method-name { font-size: 13.5px; font-weight: 500; line-height: 1.3; white-space: nowrap; }
+.method[aria-pressed="true"] .method-name { font-weight: 600; }
+.method-help { font-size: 11px; color: var(--muted); line-height: 1.3; white-space: nowrap; }
+.rail-foot { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--border-soft); }
+
+.login-main {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 0;
+  padding: 30px 44px 20px;
+  overflow-y: auto;
+}
+.login-head .eyebrow,
+.settings-head .eyebrow {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.login-head h1,
+.settings-head h1 {
+  margin-top: 6px;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: var(--tracking-display);
+}
+.login-sub {
+  margin-top: 8px;
+  max-width: 38ch;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.login-form { width: 100%; max-width: 400px; }
+.login-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+.field { display: grid; gap: 6px; }
+.field label,
+.field-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-2);
+}
+.input-shell {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  transition:
+    border-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard);
+}
+.input-shell:hover { border-color: var(--meta); }
+.input-shell:focus-within { border-color: var(--accent); box-shadow: var(--focus-ring); }
+.input-shell.invalid { border-color: var(--danger); }
+.input-shell input,
+.input-shell select {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-size: 14px;
+  letter-spacing: -0.005em;
+  outline: none;
+}
+.input-shell input:focus-visible,
+.input-shell select:focus-visible { box-shadow: none; }
+.input-shell select { appearance: none; cursor: pointer; }
+.select-wrap { position: relative; flex: 1; display: flex; align-items: center; min-width: 0; }
+.select-wrap select { width: 100%; padding-right: 30px; }
+.select-wrap .od-icon { position: absolute; right: 10px; pointer-events: none; color: var(--muted); }
+.icon-btn {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  margin-right: 3px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+}
+.icon-btn:hover { background: var(--surface); color: var(--fg); }
+.field-error { font-size: 11.5px; line-height: 1.4; color: var(--danger); }
+.field-help { font-size: 11.5px; line-height: 1.45; color: var(--muted); }
+.check-row { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--fg-2);
+  cursor: pointer;
+}
+.check input { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+
+.btn-connect {
+  width: 100%;
+  max-width: 400px;
+  height: 44px;
+  margin-top: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--accent-on);
+  font-size: 14.5px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+.btn-connect:hover { background: var(--accent-hover); }
+.btn-connect:active { background: var(--accent-active); transform: scale(0.99); }
+.btn-connect:disabled { cursor: progress; background: var(--accent-hover); }
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.connect-status {
+  min-height: 18px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.settings { display: grid; grid-template-columns: 250px minmax(0, 1fr); }
+.settings-rail { padding-top: 18px; }
+.back-link {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 4px 10px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+}
+.back-link:hover { background: rgba(0, 0, 0, 0.05); color: var(--fg); }
+.back-link svg { width: 13px; height: 13px; }
+.settings-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.settings-head { flex: none; padding: 26px 40px 10px; }
+.settings-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 40px 28px; }
+.settings-form { display: flex; flex-direction: column; gap: 18px; max-width: 460px; }
+.settings-panel { display: flex; flex-direction: column; gap: 16px; }
+.settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-soft);
+}
+.settings-actions .btn { height: 34px; flex: none; }
+.settings-hint { flex: 1; min-width: 0; font-size: 11.5px; color: var(--muted); text-align: right; }
+.main { display: flex; flex-direction: column; }
+.session-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.avatar {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border-soft);
+  font-size: 15px;
+  font-weight: 600;
+}
+.session-id { display: grid; gap: 2px; min-width: 0; }
+.session-name { font-size: 15px; font-weight: 600; line-height: 1.25; }
+.session-meta { font-size: 11.5px; color: var(--muted); }
+.session-actions { margin-left: auto; display: flex; align-items: center; gap: 16px; flex: none; }
+.dur { display: grid; gap: 2px; }
+.stat-label { font-size: 10.5px; font-weight: 500; letter-spacing: 0.02em; color: var(--muted); }
+.dur-value {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+.btn:hover { background: var(--surface); border-color: var(--meta); }
+.btn:active { transform: scale(0.98); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-on); }
+.btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn-danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+.btn-danger:hover { background: #c11f1f; border-color: #c11f1f; }
+
+.stats {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  background: var(--surface-warm);
+  border-bottom: 1px solid var(--border-soft);
+}
+.stat {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 11px 24px;
+  border-left: 1px solid var(--border-soft);
+}
+.stat:first-child { border-left: none; }
+.stat-value {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stat-value.num {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tab-row {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 24px 9px;
+}
+.tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+}
+.tab {
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 6px 14px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard);
+}
+.tab:hover { color: var(--fg); }
+.tab[aria-selected="true"] {
+  background: var(--bg);
+  color: var(--fg);
+  box-shadow: 0 0 0 1px var(--border-soft), 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.res-count { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.resource-scroll { flex: 1; overflow-y: auto; padding: 0 24px 14px; }
+.group-list { list-style: none; margin: 0; padding: 0; }
+.group { border-bottom: 1px solid var(--border-soft); }
+.group:last-child { border-bottom: none; }
+.group-head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 11px 4px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  transition: background-color var(--motion-fast) var(--ease-standard);
+}
+button.group-head:hover { background: var(--surface-warm); }
+.group-head.static { cursor: default; }
+.group-icon {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--fg-2);
+}
+.group-text { flex: 1; display: grid; gap: 2px; min-width: 0; }
+.group-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.group-meta {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tag-quiet {
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 9.5px;
+  font-weight: 500;
+}
+.status {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.status.ok { color: #0c6a30; background: color-mix(in oklab, var(--success), transparent 90%); }
+.status.warn { color: #8a6100; background: color-mix(in oklab, var(--warn), transparent 88%); }
+.main-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 18px 9px 14px;
+  border-top: 1px solid var(--border-soft);
+}
+.ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--fg-2);
+  font-size: 12px;
+  transition: background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
+}
+.ghost-btn:hover { background: var(--surface); color: var(--fg); }
+.main-foot .meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.toast {
+  position: absolute;
+  left: 50%;
+  bottom: 58px;
+  z-index: 30;
+  max-width: calc(100% - 40px);
+  padding: 8px 15px;
+  border-radius: var(--radius-pill);
+  background: var(--fg);
+  color: #fff;
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transform: translate(-50%, 6px);
+  transition: opacity var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
+  pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+dialog {
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100vh - 40px);
+  padding: 0;
+  overflow: auto;
+  border: none;
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.24);
+}
+dialog::backdrop { background: rgba(0, 0, 0, 0.3); }
+dialog[open] { animation: dialog-in var(--motion-base) var(--ease-standard); }
+@keyframes dialog-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 22px 8px;
+}
+.dialog-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.dialog-sub { margin-top: 4px; font-size: 11.5px; line-height: 1.5; color: var(--muted); }
+.close-btn {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--muted);
+}
+.close-btn:hover { color: var(--fg); }
+.dialog-body { display: grid; gap: 13px; padding: 8px 22px 2px; }
+.dialog-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px 22px 20px;
+}
+.dialog-foot .btn { height: 34px; padding: 0 16px; font-size: 12.5px; }
+.dialog-body .btn-connect { width: auto; max-width: none; height: 34px; padding: 0 16px; margin: 0; font-size: 12.5px; }
+.radio-group { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--fg-2);
+  cursor: pointer;
+}
+.radio input { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+
+.log-list {
+  list-style: none;
+  max-height: 288px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+}
+.log-item {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: 9px;
+  align-items: baseline;
+  padding: 8px 11px;
+  border-top: 1px solid var(--border-soft);
+  font-size: 11.5px;
+}
+.log-item:first-child { border-top: none; }
+.log-time { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+.log-level {
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 9.5px;
+  white-space: nowrap;
+}
+.log-level.error { color: #b42318; background: color-mix(in oklab, var(--danger), transparent 91%); }
+.log-msg { color: var(--fg-2); line-height: 1.45; overflow-wrap: anywhere; }
+.log-empty { padding: 26px 12px; text-align: center; font-size: 11.5px; color: var(--muted); }
+@media (max-width: 780px) {
+  body { padding: 12px; }
+  .app { height: clamp(540px, calc(100vh - 24px), 720px); }
+  .login { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+  .login-rail {
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    padding: 9px 12px;
+    border-right: none;
+    border-bottom: 1px solid var(--border-soft);
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .rail-label { display: none; }
+  .method-list { flex-direction: row; gap: 4px; }
+  .method { width: auto; padding: 5px 10px; border-radius: var(--radius-pill); white-space: nowrap; }
+  .method-icon { width: 24px; height: 24px; border-radius: 6px; }
+  .method-help { display: none; }
+  .method-name { font-size: 12px; }
+  .rail-foot { flex: none; margin: 0; padding: 0; border: none; }
+  .login-main { padding: 20px 20px 16px; gap: 16px; }
+  .login-head h1 { font-size: 24px; }
+  .settings { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+  .settings-rail .rail-foot { display: none; }
+  .settings-rail .back-link { margin-bottom: 0; }
+  .settings-head { padding: 18px 20px 6px; }
+  .settings-head h1 { font-size: 24px; }
+  .settings-scroll { padding: 6px 20px 20px; }
+  .settings-actions { flex-wrap: wrap; }
+  .settings-hint { order: 3; flex-basis: 100%; text-align: left; }
+  .stats { grid-template-columns: 1fr 1fr; }
+  .stat { padding: 9px 20px; }
+  .stat:nth-child(odd) { border-left: none; }
+  .stat:nth-child(n + 3) { border-top: 1px solid var(--border-soft); }
+  .session-header { flex-wrap: wrap; padding: 13px 20px; }
+  .session-actions { gap: 12px; }
+  .tab-row { padding: 11px 20px 8px; }
+  .resource-scroll { padding: 0 20px 12px; }
+  .group-body { padding-left: 24px; }
+  .main-foot { padding: 8px 12px; }
+  .main-foot .meta { display: none; }
+  .toast { bottom: 54px; }
+}
+@media (max-width: 560px) {
+  .session-actions { width: 100%; justify-content: space-between; margin-left: 0; }
+  .res-count { display: none; }
+  .tabs { flex: 1; }
+  .tab { flex: 1; text-align: center; }
+  .brand-sub { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* The application fills the native window. The prototype's outer page is presentation only. */
+body { display: block; min-height: 0; padding: 0; background: var(--bg); }
+.app { width: 100%; height: 100vh; border-radius: 0; box-shadow: none; }
+.titlebar { padding-right: 8px; gap: 12px; user-select: none; }
+.brand { align-items: center; }
+.brand-icon { width: 28px; height: 28px; object-fit: contain; flex: none; }
+.titlebar-controls { display: flex; align-items: center; gap: 4px; }
+.titlebar-controls .chip { margin-right: 8px; }
+.window-btn {
+  display: grid; place-items: center;
+  width: 34px; height: 32px; border: 0; border-radius: 7px;
+  background: transparent; color: var(--muted);
+}
+.window-btn:hover { background: var(--surface); color: var(--fg); }
+.window-close:hover { background: var(--danger); color: #fff; }
+.method:disabled, .btn:disabled, .radio:has(:disabled) { cursor: default; opacity: 0.55; }
+.method:disabled:hover, .ghost-btn:disabled:hover { background: transparent; }
+.login-fieldset:disabled .check, .login-fieldset:disabled input { cursor: default; }
+#accountShell { position: relative; }
+.account-picker[aria-expanded="true"] { background: var(--surface); color: var(--fg); }
+.account-picker svg { transition: transform var(--motion-fast) var(--ease-standard); }
+.account-picker[aria-expanded="true"] svg { transform: rotate(180deg); }
+.account-options {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + 6px);
+  inset-inline: -1px;
+  max-height: 184px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  box-shadow: var(--elev-raised);
+}
+.account-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.account-option:hover, .account-option:focus { background: var(--surface); outline: none; }
+.account-option[aria-selected="true"] { color: var(--accent); font-weight: 500; }
+.account-option::after { content: ""; width: 14px; flex: none; }
+.account-option[aria-selected="true"]::after {
+  width: 11px;
+  height: 6px;
+  border: solid var(--accent);
+  border-width: 0 0 1.7px 1.7px;
+  transform: translateY(-1px) rotate(-45deg);
+}
+.icon-btn.icon-remove:hover { color: var(--danger); }
+.login-fieldset .btn-connect { margin-top: 16px; }
+.profile-row { display: flex; align-items: center; gap: 8px; }
+.profile-row .input-shell { flex: 1; min-width: 0; }
+.profile-row .btn { height: 40px; }
+.settings-hint, .connect-status, .group-meta { overflow-wrap: anywhere; }
+.is-error { color: var(--danger); }
+.notice { margin: 10px 24px 0; font-size: 12px; color: var(--muted); }
+.notice.is-error { color: var(--danger); }
+.group-head.static { cursor: default; }
+.main-foot-buttons { display: flex; gap: 2px; }
+.session-meta { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+@media (max-width: 780px) {
+  body { padding: 0; }
+  .app { height: 100vh; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="titlebar" id="titlebar">
+    <div class="brand">
+      <img class="brand-icon" src="V5VPN_APP_ICON_DATA" alt="">
+      <span class="brand-name">安全接入</span>
+      <span class="brand-sub">企业网关客户端</span>
+    </div>
+    <div class="titlebar-controls">
+      <span class="chip" id="globalStatus" role="status">
+        <span class="dot" aria-hidden="true"></span>
+        <span id="globalStatusText">未连接</span>
+      </span>
+      <button class="window-btn" type="button" id="minimize" aria-label="最小化" title="最小化">
+        <svg class="od-icon" style="--od-icon-size:12px" viewBox="0 0 12 12" fill="none" stroke="currentColor" aria-hidden="true"><path d="M2 6h8"/></svg>
+      </button>
+      <button class="window-btn window-close" type="button" id="windowClose" aria-label="关闭" title="关闭">
+        <svg class="od-icon" style="--od-icon-size:12px" viewBox="0 0 12 12" fill="none" stroke="currentColor" aria-hidden="true"><path d="m2 2 8 8m0-8-8 8"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="app-body">
+    <section class="screen login" id="screenLogin" aria-label="登录安全网关">
+      <aside class="login-rail">
+        <p class="rail-label">登录方式</p>
+        <div class="method-list" role="group" aria-label="登录方式">
+          <button class="method" type="button" aria-pressed="true">
+            <span class="method-icon" aria-hidden="true">
+              <svg class="od-icon" style="--od-icon-size:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M4.8 20a7.2 7.2 0 0 1 14.4 0"/></svg>
+            </span>
+            <span class="method-text"><span class="method-name">口令登录</span><span class="method-help">账号与口令</span></span>
+          </button>
+          <button class="method" type="button" disabled aria-pressed="false">
+            <span class="method-icon" aria-hidden="true">
+              <svg class="od-icon" style="--od-icon-size:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.4" r="3.9"/><path d="M8.4 11.6 7 21l5-2.5L17 21l-1.4-9.4"/></svg>
+            </span>
+            <span class="method-text"><span class="method-name">证书登录</span><span class="method-help">数字证书</span></span>
+          </button>
+          <button class="method" type="button" disabled aria-pressed="false">
+            <span class="method-icon" aria-hidden="true">
+              <svg class="od-icon" style="--od-icon-size:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.6 19.5a5.4 5.4 0 0 1 10.8 0"/><path d="M16 5.4a3.2 3.2 0 0 1 0 6.2"/><path d="M17.4 14.4a5.1 5.1 0 0 1 3 4.8"/></svg>
+            </span>
+            <span class="method-text"><span class="method-name">匿名登录</span><span class="method-help">访客接入</span></span>
+          </button>
+        </div>
+        <div class="rail-foot">
+          <button class="method" type="button" id="railSettings" disabled>
+            <span class="method-icon" aria-hidden="true">
+              <svg class="od-icon" style="--od-icon-size:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.1"/><path d="M12 3.2v2.1M12 18.7v2.1M20.8 12h-2.1M5.3 12H3.2M18.2 5.8l-1.5 1.5M7.3 16.7l-1.5 1.5M18.2 18.2l-1.5-1.5M7.3 7.3 5.8 5.8"/></svg>
+            </span>
+            <span class="method-text"><span class="method-name">系统设置</span><span class="method-help">网关与算法</span></span>
+          </button>
+        </div>
+      </aside>
+
+      <div class="login-main od-scroll">
+        <div class="login-head">
+          <p class="eyebrow">口令登录</p>
+          <h1>登录安全网关</h1>
+        </div>
+
+        <form class="login-form" id="loginForm" autocomplete="off" novalidate>
+          <fieldset class="login-fieldset" id="loginFieldset" disabled>
+            <div class="field" id="gatewayField" hidden>
+              <label for="gatewayPicker">网关</label>
+              <div class="input-shell">
+                <div class="select-wrap">
+                  <select id="gatewayPicker"></select>
+                  <svg class="od-icon" style="--od-icon-size:12px" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
+                </div>
+              </div>
+            </div>
+            <div class="field">
+              <label for="account">账号</label>
+              <div class="input-shell" id="accountShell">
+                <input id="account" type="text" placeholder="请输入账号" autocomplete="off" spellcheck="false" aria-describedby="accountError">
+                <button class="icon-btn account-picker" id="savedAccountButton" type="button" aria-label="选择已保存的账号" title="选择已保存的账号" aria-haspopup="listbox" aria-controls="savedAccounts" aria-expanded="false" hidden>
+                  <svg class="od-icon" style="--od-icon-size:12px" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
+                </button>
+                <button class="icon-btn icon-remove" type="button" id="forget" aria-label="移除已保存的账号和密码" title="移除已保存的账号和密码" hidden>
+                  <svg class="od-icon" style="--od-icon-size:14px" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><path d="M2.5 4.5h11M6 4.5V3h4v1.5m2 0-.7 8.5H4.7L4 4.5M6.5 7v3.5m3-3.5v3.5"/></svg>
+                </button>
+                <div class="account-options" id="savedAccounts" role="listbox" aria-label="已保存的账号" hidden></div>
+              </div>
+              <p class="field-error" id="accountError" hidden></p>
+            </div>
+            <div class="field">
+              <label for="password">口令</label>
+              <div class="input-shell" id="passwordShell">
+                <input id="password" type="password" placeholder="请输入口令" autocomplete="off" aria-describedby="passwordError">
+                <button class="icon-btn" type="button" id="togglePassword" aria-label="显示口令" aria-pressed="false" title="显示口令">
+                  <svg class="od-icon" style="--od-icon-size:15px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+              <p class="field-error" id="passwordError" hidden></p>
+            </div>
+            <div class="check-row">
+              <label class="check"><input type="checkbox" id="remember">记住账号和密码</label>
+            </div>
+
+            <button class="btn-connect" type="submit" id="connectBtn">
+              <span class="spinner" id="loginSpinner" aria-hidden="true" hidden></span>
+              <span id="connectLabel">登录</span>
+            </button>
+          </fieldset>
+          <p class="connect-status" id="connectStatus" role="status" aria-live="polite"></p>
+        </form>
+
+      </div>
+    </section>
+
+    <section class="screen main" id="screenMain" hidden aria-label="安全接入会话">
+      <header class="session-header">
+        <span class="avatar" id="sessionAvatar" aria-hidden="true"></span>
+        <div class="session-id">
+          <span class="session-name od-truncate" id="sessionName"></span>
+          <span class="session-meta" id="sessionMeta"></span>
+        </div>
+        <div class="session-actions">
+          <div class="dur">
+            <span class="stat-label">会话时长</span>
+            <span class="dur-value" id="sessionDuration">00:00:00</span>
+          </div>
+          <button class="btn" type="button" id="disconnectBtn">
+            <svg class="od-icon" style="--od-icon-size:13px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v8"/><path d="M7 6.3a8 8 0 1 0 10 0"/></svg>
+            断开连接
+          </button>
+        </div>
+      </header>
+
+      <div class="stats">
+        <div class="stat"><span class="stat-label">加密算法</span><span class="stat-value">国际算法</span></div>
+        <div class="stat"><span class="stat-label">网关</span><span class="stat-value" id="statGateway"></span></div>
+        <div class="stat"><span class="stat-label">SSL VPN</span><span class="stat-value" id="statSsl"></span></div>
+        <div class="stat"><span class="stat-label">NC/IPsec</span><span class="stat-value" id="statNc"></span></div>
+      </div>
+
+      <div class="tab-row">
+        <div class="tabs" role="tablist" aria-label="接入协议">
+          <button class="tab" type="button" role="tab" id="tabSsl" aria-selected="true" aria-controls="sslPanel">SSL VPN</button>
+          <button class="tab" type="button" role="tab" id="tabIpsec" aria-selected="false" aria-controls="ipsecPanel" tabindex="-1">IPSec VPN</button>
+        </div>
+      </div>
+      <div class="resource-scroll od-scroll">
+        <div id="sslPanel" role="tabpanel" aria-labelledby="tabSsl">
+          <div class="group-head static">
+            <span class="group-icon" aria-hidden="true">
+              <svg class="od-icon" style="--od-icon-size:17px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 7 2.8v5.7c0 4.2-2.9 7.5-7 9.5-4.1-2-7-5.3-7-9.5V5.8z"/><path d="m9 11.8 2.1 2.1 4.1-4.1"/></svg>
+            </span>
+            <div class="group-text"><span class="group-name">资源转发</span><span class="group-meta" id="sslInfo"></span></div>
+            <span class="status" id="sslStatus"></span>
+          </div>
+        </div>
+        <div id="ipsecPanel" role="tabpanel" aria-labelledby="tabIpsec" hidden>
+          <div class="group-head static">
+            <span class="group-icon" aria-hidden="true">
+              <svg class="od-icon" style="--od-icon-size:17px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="6" height="6" rx="1.5"/><path d="M12 3v6m0 6v6M3 12h6m6 0h6"/></svg>
+            </span>
+            <div class="group-text"><span class="group-name">NC/IPsec 隧道</span><span class="group-meta" id="ncInfo"></span></div>
+            <span class="status" id="ncStatus"></span>
+          </div>
+        </div>
+        <p class="notice" id="sessionNotice" role="status" hidden></p>
+      </div>
+      <footer class="main-foot">
+        <div class="main-foot-buttons">
+          <button class="ghost-btn" type="button" id="openLogs">
+            <svg class="od-icon" style="--od-icon-size:13px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h7l5 5V20a.9.9 0 0 1-.9.9H6a.9.9 0 0 1-.9-.9V4.4A.9.9 0 0 1 6 3.5z"/><path d="M13 3.5v5h5m-9.5 4.5h7m-7 3.5h5"/></svg>
+            日志
+          </button>
+          <button class="ghost-btn" type="button" id="switchAccount">
+            <svg class="od-icon" style="--od-icon-size:13px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h13l-3-3m6 11H7l3 3"/></svg>
+            切换账号
+          </button>
+        </div>
+        <span class="meta">
+          <svg class="od-icon" style="--od-icon-size:12px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="9.5" rx="2.2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>
+          会话已加密
+        </span>
+      </footer>
+    </section>
+
+    <section class="screen settings" id="screenSettings" aria-label="系统设置" hidden>
+      <aside class="login-rail settings-rail">
+        <button class="back-link" type="button" id="settingsBack">
+          <svg class="od-icon" style="--od-icon-size:13px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg>
+          返回
+        </button>
+        <p class="rail-label">系统设置</p>
+        <div class="method-list" role="group" aria-label="设置分类">
+          <button class="method" type="button" aria-pressed="true">
+            <span class="method-icon" aria-hidden="true">
+              <svg class="od-icon" style="--od-icon-size:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.3 2.4 3.5 5.3 3.5 8.5s-1.2 6.1-3.5 8.5c-2.3-2.4-3.5-5.3-3.5-8.5s1.2-6.1 3.5-8.5z"/></svg>
+            </span>
+            <span class="method-text"><span class="method-name">连接设置</span><span class="method-help">网关与算法</span></span>
+          </button>
+        </div>
+      </aside>
+
+      <div class="settings-main">
+        <header class="settings-head">
+          <p class="eyebrow">系统设置</p>
+          <h1>连接设置</h1>
+          <p class="login-sub">配置安全网关地址与加密算法。</p>
+        </header>
+        <div class="settings-scroll od-scroll">
+          <form class="settings-form" id="settingsForm" autocomplete="off" novalidate>
+            <div class="settings-panel">
+              <div class="field">
+                <label for="editPicker">已有网关</label>
+                <div class="profile-row">
+                  <div class="input-shell">
+                    <span class="select-wrap">
+                      <select id="editPicker"></select>
+                      <svg class="od-icon" style="--od-icon-size:12px" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
+                    </span>
+                  </div>
+                  <button class="btn" id="addGateway" type="button">新增</button>
+                  <button class="btn" id="removeGateway" type="button">删除</button>
+                </div>
+              </div>
+              <div class="field">
+                <label for="setName">网关名称</label>
+                <div class="input-shell" id="setNameShell"><input id="setName" type="text" spellcheck="false" placeholder="用于区分网关配置" aria-describedby="setNameError"></div>
+                <p class="field-error" id="setNameError" hidden></p>
+              </div>
+              <div class="field">
+                <label for="setGateway">网关地址</label>
+                <div class="input-shell" id="setGatewayShell"><input id="setGateway" type="text" inputmode="url" spellcheck="false" placeholder="IP 或域名" aria-describedby="setGatewayError"></div>
+                <p class="field-error" id="setGatewayError" hidden></p>
+              </div>
+              <div class="field">
+                <label for="setPort">端口</label>
+                <div class="input-shell" id="setPortShell"><input id="setPort" type="text" inputmode="numeric" placeholder="443" aria-describedby="setPortError"></div>
+                <p class="field-error" id="setPortError" hidden></p>
+              </div>
+              <div class="field">
+                <span class="field-label" id="algoLabel">算法标准</span>
+                <div class="radio-group" role="radiogroup" aria-labelledby="algoLabel">
+                  <label class="radio"><input type="radio" name="algorithm" disabled>国密算法</label>
+                  <label class="radio"><input type="radio" name="algorithm" checked>国际算法</label>
+                </div>
+              </div>
+            </div>
+            <div class="settings-actions">
+              <button class="btn" type="button" id="cancelSettings">取消</button>
+              <span class="settings-hint" id="settingsHint" role="status" aria-live="polite"></span>
+              <button class="btn btn-primary" type="submit" id="saveSettings">保存设置</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<dialog id="confirmDialog" aria-labelledby="confirmTitle" aria-describedby="confirmNote">
+  <div class="dialog-head"><div><h2 class="dialog-title" id="confirmTitle"></h2><p class="dialog-sub" id="confirmNote"></p></div></div>
+  <form method="dialog" class="dialog-foot">
+    <button class="btn" value="cancel" autofocus>取消</button>
+    <button class="btn btn-danger" value="confirm" id="confirmAction">确认</button>
+  </form>
+</dialog>
+
+<dialog id="logsDialog" aria-labelledby="logsTitle">
+  <div class="dialog-head">
+    <div><h2 class="dialog-title" id="logsTitle">连接日志</h2><p class="dialog-sub">本次运行期间的连接和隧道状态。</p></div>
+  </div>
+  <div class="dialog-body">
+    <ul class="log-list" id="logList"></ul>
+    <p class="log-empty" id="logEmpty" hidden>暂无记录。</p>
+  </div>
+  <form method="dialog" class="dialog-foot"><button class="btn">关闭</button></form>
+</dialog>
+<script>
+"use strict";
+
+const byId = (id) => document.getElementById(id);
+const login = byId("screenLogin");
+const session = byId("screenMain");
+const settings = byId("screenSettings");
+const account = byId("account");
+const password = byId("password");
+const remember = byId("remember");
+const savedAccountButton = byId("savedAccountButton");
+const savedAccounts = byId("savedAccounts");
+const gatewayPicker = byId("gatewayPicker");
+const editPicker = byId("editPicker");
+const loginStatus = byId("connectStatus");
+const settingsHint = byId("settingsHint");
+const confirmDialog = byId("confirmDialog");
+const logs = [];
+
+const phases = {
+  offline: "未连接",
+  connecting: "正在连接",
+  online: "已连接",
+  disconnecting: "正在断开",
+};
+const ncStatuses = {
+  notAuthorized: "未授权",
+  connected: "已建立",
+  unavailable: "未连接",
+};
+const profileFields = {
+  name: byId("setName"),
+  address: byId("setGateway"),
+  port: byId("setPort"),
+};
+
+let state;
+let draft;
+let pending;
+let confirmAction;
+let connectStart = 0;
+let selectedAccountWasSaved = false;
+
+function send(action, details = {}) {
+  window.ipc?.postMessage(JSON.stringify({ action, ...details }));
+}
+
+function option(value, label) {
+  const node = document.createElement("option");
+  node.value = value;
+  node.textContent = label;
+  return node;
+}
+
+function endpoint(profile) {
+  if (!profile?.address) return "";
+  const host = profile.address.includes(":") && !profile.address.startsWith("[")
+    ? "[" + profile.address + "]"
+    : profile.address;
+  return host + ":" + profile.port;
+}
+
+function profileLabel(profile) {
+  return profile.name || endpoint(profile) || "未配置网关";
+}
+
+function setMessage(node, text, isError) {
+  node.textContent = text || "";
+  node.classList.toggle("is-error", Boolean(text && isError));
+}
+
+function fieldError(input, text = "") {
+  const shell = byId(input.id + "Shell");
+  const error = byId(input.id + "Error");
+  shell.classList.toggle("invalid", Boolean(text));
+  input.setAttribute("aria-invalid", Boolean(text));
+  error.hidden = !text;
+  error.textContent = text;
+}
+
+function showPassword(show) {
+  password.type = show ? "text" : "password";
+  const toggle = byId("togglePassword");
+  toggle.title = show ? "隐藏口令" : "显示口令";
+  toggle.setAttribute("aria-label", toggle.title);
+  toggle.setAttribute("aria-pressed", show);
+}
+
+function clearPassword() {
+  password.value = "";
+  showPassword(false);
+  fieldError(password);
+}
+
+function isSavedAccount() {
+  return state?.accounts.includes(account.value.trim()) || false;
+}
+
+function updateAccountControls() {
+  const saved = isSavedAccount();
+  byId("forget").hidden = !saved;
+  savedAccountButton.hidden = !state?.accounts.length;
+  password.placeholder = saved ? "已保存口令" : "请输入口令";
+  for (const entry of savedAccounts.children) {
+    entry.setAttribute("aria-selected", entry.dataset.username === account.value.trim());
+  }
+}
+
+function selectAccount(username) {
+  account.value = username;
+  clearPassword();
+  fieldError(account);
+  selectedAccountWasSaved = isSavedAccount();
+  remember.checked = selectedAccountWasSaved;
+  updateAccountControls();
+}
+
+function closeSavedAccounts(restoreFocus = false) {
+  if (savedAccounts.hidden) return;
+  savedAccounts.hidden = true;
+  savedAccountButton.setAttribute("aria-expanded", "false");
+  if (restoreFocus) savedAccountButton.focus({ preventScroll: true });
+}
+
+function openSavedAccounts(preferLast = false) {
+  if (savedAccountButton.hidden || state?.phase !== "offline" || pending) return;
+  savedAccounts.hidden = false;
+  savedAccountButton.setAttribute("aria-expanded", "true");
+  const selected = savedAccounts.querySelector('[aria-selected="true"]');
+  (selected || (preferLast ? savedAccounts.lastElementChild : savedAccounts.firstElementChild))?.focus();
+}
+
+function setSavedAccountOptions() {
+  closeSavedAccounts();
+  savedAccounts.replaceChildren(...state.accounts.map((username) => {
+    const entry = document.createElement("div");
+    entry.className = "account-option";
+    entry.setAttribute("role", "option");
+    entry.tabIndex = -1;
+    entry.dataset.username = username;
+
+    const label = document.createElement("span");
+    label.className = "od-truncate";
+    label.textContent = username;
+    label.title = username;
+    entry.append(label);
+    return entry;
+  }));
+}
+
+function chooseSavedAccount(entry) {
+  if (entry.dataset.username !== account.value.trim()) selectAccount(entry.dataset.username);
+  closeSavedAccounts();
+  password.focus();
+}
+
+function refreshGatewayPicker() {
+  byId("gatewayField").hidden = state.profiles.length < 2;
+  gatewayPicker.replaceChildren(...state.profiles.map((gateway, index) =>
+    option(index, gateway.name || "网关 " + (index + 1))
+  ));
+  gatewayPicker.value = state.selected;
+  gatewayPicker.disabled = false;
+}
+
+function showScreen() {
+  const isEditing = Boolean(draft);
+  const inSession = state?.phase === "online" || state?.phase === "disconnecting";
+  login.hidden = isEditing || inSession;
+  session.hidden = isEditing || !inSession;
+  settings.hidden = !isEditing;
+}
+
+function focusAccount() {
+  requestAnimationFrame(() => account.focus());
+}
+
+function openSettings() {
+  if (state?.phase !== "offline" || pending) return;
+  draft = {
+    profiles: state.profiles.map(({ name, address, port }) => ({ name, address, port: String(port) })),
+    selected: state.selected,
+  };
+  if (!draft.profiles.length) {
+    draft.profiles.push({ name: "", address: "", port: "443" });
+    draft.selected = 0;
+  }
+  renderEditor();
+  setMessage(settingsHint, "", false);
+  showScreen();
+  profileFields.name.focus();
+}
+
+function closeSettings() {
+  if (pending) return;
+  draft = undefined;
+  showScreen();
+  byId("railSettings").focus();
+}
+
+function updateEditorPicker() {
+  editPicker.replaceChildren(...draft.profiles.map((gateway, index) => option(index, profileLabel(gateway))));
+  editPicker.value = draft.selected;
+  byId("removeGateway").disabled = draft.profiles.length < 2;
+}
+
+function renderEditor() {
+  updateEditorPicker();
+  const profile = draft.profiles[draft.selected];
+  for (const [name, input] of Object.entries(profileFields)) {
+    input.value = profile[name];
+    fieldError(input);
+  }
+}
+
+function requestConfirmation(title, text, label, action) {
+  if (confirmDialog.open) return;
+  confirmAction = action;
+  byId("confirmTitle").textContent = title;
+  byId("confirmNote").textContent = text;
+  byId("confirmAction").textContent = label;
+  confirmDialog.returnValue = "";
+  confirmDialog.showModal();
+}
+
+function setProtocol(nc) {
+  byId("tabSsl").setAttribute("aria-selected", !nc);
+  byId("tabSsl").tabIndex = nc ? -1 : 0;
+  byId("tabIpsec").setAttribute("aria-selected", nc);
+  byId("tabIpsec").tabIndex = nc ? 0 : -1;
+  byId("sslPanel").hidden = nc;
+  byId("ipsecPanel").hidden = !nc;
+}
+
+function formatDuration(total) {
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor(total / 60) % 60;
+  return [hours, minutes, total % 60].map((value) => String(value).padStart(2, "0")).join(":");
+}
+
+function updateDuration() {
+  if (connectStart) {
+    const seconds = Math.floor(Math.max(0, performance.now() - connectStart) / 1000);
+    byId("sessionDuration").textContent = formatDuration(seconds);
+  }
+}
+
+function updateSession(profile) {
+  const isOnline = state.phase === "online";
+  const name = state.username || "VPN";
+  const gateway = endpoint(profile);
+  const ncLabel = ncStatuses[state.ncStatus];
+  byId("sessionAvatar").textContent = Array.from(name)[0].toUpperCase();
+  byId("sessionName").textContent = name;
+  byId("sessionMeta").textContent = profile ? profileLabel(profile) : "";
+  byId("statGateway").textContent = gateway;
+  byId("statGateway").title = gateway;
+  byId("statSsl").textContent = state.webResources ? "已启用" : "未授权";
+  byId("statNc").textContent = ncLabel;
+  byId("sslInfo").textContent = state.webResources ? "可在常用浏览器中访问网关授权的资源。" : "";
+  byId("sslStatus").textContent = byId("statSsl").textContent;
+  byId("sslStatus").classList.toggle("ok", state.webResources);
+  byId("ncInfo").textContent = state.ncError || (state.ncStatus === "connected" ? "已安装网关授权的网段路由。" : "");
+  byId("ncStatus").textContent = ncLabel;
+  byId("ncStatus").classList.toggle("ok", state.ncStatus === "connected");
+  byId("ncStatus").classList.toggle("warn", state.ncStatus === "unavailable");
+  byId("disconnectBtn").disabled = !isOnline;
+  byId("switchAccount").disabled = !isOnline;
+  const notice = byId("sessionNotice");
+  notice.hidden = !(state.error || state.notice);
+  setMessage(notice, state.error || state.notice, state.error);
+  connectStart = performance.now() - 1000 * state.connectedSeconds;
+  updateDuration();
+}
+
+function addLog(type, text) {
+  logs.unshift({
+    type,
+    text,
+    time: new Date().toLocaleTimeString("zh-CN", { hour12: false }),
+  });
+  if (logs.length > 40) logs.pop();
+}
+
+function renderLogs() {
+  const list = byId("logList");
+  list.hidden = logs.length === 0;
+  byId("logEmpty").hidden = logs.length !== 0;
+  list.replaceChildren(...logs.map((event) => {
+    const row = document.createElement("li");
+    row.className = "log-item";
+    const time = document.createElement("time");
+    time.className = "log-time";
+    time.textContent = event.time;
+    const label = document.createElement("span");
+    label.className = event.type === "错误" ? "log-level error" : "log-level";
+    label.textContent = event.type;
+    const message = document.createElement("span");
+    message.className = "log-msg";
+    message.textContent = event.text;
+    row.append(time, label, message);
+    return row;
+  }));
+}
+
+window.v5vpnUpdate = (next) => {
+  const previous = state;
+  const operation = pending;
+  pending = undefined;
+  state = next;
+
+  const profile = state.profiles[state.selected];
+  const oldProfile = previous?.profiles[previous.selected];
+  const gatewayChanged = endpoint(profile) !== endpoint(oldProfile);
+  const accountsChanged = !previous || JSON.stringify(previous.accounts) !== JSON.stringify(state.accounts);
+
+  if (!previous || JSON.stringify(previous.profiles) !== JSON.stringify(state.profiles) ||
+      previous.selected !== state.selected || operation === "selectGateway") {
+    refreshGatewayPicker();
+  }
+  if (accountsChanged) setSavedAccountOptions();
+  if (!previous || gatewayChanged) {
+    selectAccount(state.accounts.includes(state.username) ? state.username : (state.accounts[0] || ""));
+  } else {
+    selectedAccountWasSaved = isSavedAccount();
+    if (operation === "forgetAccount" && !selectedAccountWasSaved) remember.checked = false;
+    updateAccountControls();
+  }
+
+  const isOffline = state.phase === "offline";
+  const noSession = isOffline || state.phase === "connecting";
+  byId("globalStatusText").textContent = phases[state.phase];
+  byId("globalStatus").classList.toggle("on", state.phase === "online");
+  byId("loginFieldset").disabled = !isOffline;
+  byId("railSettings").disabled = !isOffline;
+  if (!isOffline) closeSavedAccounts();
+  byId("loginSpinner").hidden = state.phase !== "connecting";
+  byId("connectLabel").textContent = state.phase === "connecting" ? "正在连接…" : "登录";
+  setMessage(loginStatus, state.error || state.notice, state.error);
+
+  if (operation === "saveSettings") {
+    byId("saveSettings").disabled = false;
+    if (state.error) {
+      setMessage(settingsHint, state.error, true);
+    } else {
+      draft = undefined;
+    }
+  }
+  if (!noSession) {
+    updateSession(profile);
+  } else {
+    connectStart = 0;
+  }
+  showScreen();
+
+  if (previous && previous.phase !== state.phase) {
+    if (state.phase === "online") setProtocol(!state.webResources && state.ncStatus === "connected");
+    addLog("连接", isOffline ? "连接已结束" : phases[state.phase]);
+    if (state.phase === "online") {
+      addLog("隧道", "NC/IPsec 隧道" + ncStatuses[state.ncStatus]);
+      if (state.ncError) addLog("错误", state.ncError);
+    }
+    if (isOffline) focusAccount();
+  }
+  if (state.error && state.error !== previous?.error) addLog("错误", state.error);
+  const logsDialog = byId("logsDialog");
+  if (logsDialog.open) renderLogs();
+  if (!previous) {
+    if (profile?.address) focusAccount();
+    else byId("railSettings").focus();
+  }
+};
+
+account.addEventListener("input", () => {
+  clearPassword();
+  fieldError(account);
+  const saved = isSavedAccount();
+  if (saved || selectedAccountWasSaved) remember.checked = saved;
+  selectedAccountWasSaved = saved;
+  updateAccountControls();
+});
+
+savedAccountButton.addEventListener("click", () => {
+  if (savedAccounts.hidden) openSavedAccounts();
+  else closeSavedAccounts(true);
+});
+savedAccountButton.addEventListener("keydown", (event) => {
+  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+  event.preventDefault();
+  openSavedAccounts(event.key === "ArrowUp");
+});
+savedAccounts.addEventListener("click", (event) => {
+  const entry = event.target.closest(".account-option");
+  if (entry) chooseSavedAccount(entry);
+});
+savedAccounts.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeSavedAccounts(true);
+    return;
+  }
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    chooseSavedAccount(event.target);
+    return;
+  }
+  const entries = Array.from(savedAccounts.children);
+  const index = entries.indexOf(event.target);
+  let next;
+  switch (event.key) {
+    case "ArrowDown": next = Math.min(index + 1, entries.length - 1); break;
+    case "ArrowUp": next = Math.max(index - 1, 0); break;
+    case "Home": next = 0; break;
+    case "End": next = entries.length - 1; break;
+    default: return;
+  }
+  event.preventDefault();
+  entries[next]?.focus();
+});
+function closeSavedAccountsFromOutside({ target }) {
+  if (!savedAccountButton.contains(target) && !savedAccounts.contains(target)) closeSavedAccounts();
+}
+document.addEventListener("pointerdown", closeSavedAccountsFromOutside);
+document.addEventListener("focusin", closeSavedAccountsFromOutside);
+
+password.addEventListener("input", () => fieldError(password));
+byId("togglePassword").addEventListener("click", () => {
+  showPassword(password.type === "password");
+  password.focus();
+});
+
+byId("loginForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (state?.phase !== "offline" || pending) return;
+
+  if (!state.profiles[state.selected]?.address) {
+    setMessage(loginStatus, "请先在系统设置中配置网关。", true);
+    byId("railSettings").focus();
+    return;
+  }
+  const username = account.value.trim();
+  const typed = password.value;
+  const useSaved = !typed && isSavedAccount();
+
+  if (!username) {
+    fieldError(account, "请输入账号。");
+    account.focus();
+    return;
+  }
+  if (!typed && !useSaved) {
+    fieldError(password, "请输入口令。");
+    password.focus();
+    return;
+  }
+  pending = "connect";
+  clearPassword();
+  byId("loginFieldset").disabled = true;
+  send("connect", { username, password: typed, remember: remember.checked, useSaved });
+});
+
+gatewayPicker.addEventListener("change", () => {
+  if (state?.phase !== "offline" || pending) return;
+  pending = "selectGateway";
+  gatewayPicker.disabled = true;
+  send("selectGateway", { index: Number(gatewayPicker.value) });
+});
+byId("forget").addEventListener("click", () => {
+  if (state?.phase !== "offline" || !isSavedAccount() || pending) return;
+  const username = account.value.trim();
+  requestConfirmation("移除已保存的账号？", "将从本机移除「" + username + "」的登录凭据。", "移除", () => {
+    pending = "forgetAccount";
+    send("forgetAccount", { username });
+  });
+});
+
+byId("railSettings").addEventListener("click", openSettings);
+byId("settingsBack").addEventListener("click", closeSettings);
+byId("cancelSettings").addEventListener("click", closeSettings);
+for (const [key, input] of Object.entries(profileFields)) {
+  input.addEventListener("input", () => {
+    draft.profiles[draft.selected][key] = input.value;
+    fieldError(input);
+    if (key !== "port") updateEditorPicker();
+  });
+}
+editPicker.addEventListener("change", () => {
+  if (pending) return;
+  draft.selected = Number(editPicker.value);
+  renderEditor();
+});
+byId("addGateway").addEventListener("click", () => {
+  if (pending) return;
+  const current = draft.profiles[draft.selected];
+  if (!current.name.trim() && !current.address.trim()) {
+    fieldError(profileFields.name, "请先填写当前网关，或直接编辑这条配置。");
+  } else {
+    draft.selected = draft.profiles.push({ name: "", address: "", port: "443" }) - 1;
+    renderEditor();
+  }
+  profileFields.name.focus();
+});
+byId("removeGateway").addEventListener("click", () => {
+  if (pending || draft.profiles.length < 2) return;
+  const index = draft.selected;
+  requestConfirmation("删除网关？", "保存设置后将移除「" + profileLabel(draft.profiles[index]) + "」。", "删除", () => {
+    draft.profiles.splice(index, 1);
+    draft.selected = Math.min(index, draft.profiles.length - 1);
+    renderEditor();
+  });
+});
+byId("settingsForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (pending || !draft) return;
+  const profiles = draft.profiles.map(({ name, address, port }) => ({
+    name: name.trim(),
+    address: address.trim(),
+    port: /^\d+$/.test(port.trim()) ? Number(port) : 0,
+  }));
+  for (const [index, gateway] of profiles.entries()) {
+    const issue = !gateway.name
+      ? ["name", "请输入网关名称。"]
+      : !gateway.address
+        ? ["address", "请输入网关地址。"]
+        : !Number.isInteger(gateway.port) || gateway.port < 1 || gateway.port > 65535
+          ? ["port", "请输入 1 到 65535 之间的端口。"]
+          : null;
+    if (issue) {
+      draft.selected = index;
+      renderEditor();
+      const [key, message] = issue;
+      fieldError(profileFields[key], message);
+      profileFields[key].focus();
+      return;
+    }
+  }
+  pending = "saveSettings";
+  byId("saveSettings").disabled = true;
+  send("saveSettings", { profiles, selected: draft.selected });
+});
+
+function requestDisconnect(switchAccount) {
+  if (state?.phase !== "online" || pending) return;
+  requestConfirmation(
+    switchAccount ? "断开连接并切换账号？" : "断开连接？",
+    "断开后，当前通过 VPN 打开的会话可能中断。",
+    "断开连接",
+    () => {
+      pending = "disconnect";
+      send("disconnect");
+    }
+  );
+}
+
+byId("disconnectBtn").addEventListener("click", () => requestDisconnect(false));
+byId("switchAccount").addEventListener("click", () => requestDisconnect(true));
+byId("openLogs").addEventListener("click", () => {
+  renderLogs();
+  byId("logsDialog").showModal();
+});
+confirmDialog.addEventListener("close", () => {
+  const action = confirmAction;
+  confirmAction = undefined;
+  if (confirmDialog.returnValue === "confirm") action?.();
+});
+byId("tabSsl").addEventListener("click", () => setProtocol(false));
+byId("tabIpsec").addEventListener("click", () => setProtocol(true));
+for (const tab of [byId("tabSsl"), byId("tabIpsec")]) {
+  tab.addEventListener("keydown", (event) => {
+    if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+    event.preventDefault();
+    const nc = tab.id === "tabSsl";
+    setProtocol(nc);
+    byId(nc ? "tabIpsec" : "tabSsl").focus();
+  });
+}
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !confirmDialog.open && draft) closeSettings();
+});
+byId("minimize").addEventListener("click", () => send("minimize"));
+byId("windowClose").addEventListener("click", () => send("close"));
+byId("titlebar").addEventListener("pointerdown", (event) => {
+  if (event.button === 0 && !event.target.closest("button")) send("drag");
+});
+
+setInterval(updateDuration, 1000);
+send("ready");
+</script>
+</body>
+</html>

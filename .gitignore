@@ -1,0 +1,6 @@
+/target/
+/V5VPN Data/
+/settings.json
+*.exe
+*.pdb
+*.log
