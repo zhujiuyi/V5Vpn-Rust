@@ -69,8 +69,8 @@ function Install-NcDistribution([string]$installPath, [string]$stampPath) {
     }
 
     $archiveName, $expectedSha256 = $ubuntuImages[$architecture]
-    # The pinned digests come from Canonical's release directory SHA256SUMS.
-    $imageUrl = 'https://cloud-images.ubuntu.com/wsl/releases/24.04/current/' + $archiveName
+    # The pinned digests come from Canonical's dated release directory SHA256SUMS.
+    $imageUrl = 'https://cloud-images.ubuntu.com/wsl/releases/24.04/20240423/' + $archiveName
     $archive = Join-Path $dataRoot ('download-' + [guid]::NewGuid().ToString('N') + '.tar.gz')
     try {
         Write-Host 'Downloading the official Ubuntu 24.04 LTS WSL image.'
@@ -93,47 +93,7 @@ function Install-NcDistribution([string]$installPath, [string]$stampPath) {
 }
 
 function Install-NcTools {
-    $installScript = @'
-set -eu
-export DEBIAN_FRONTEND=noninteractive
-
-policy=/usr/sbin/policy-rc.d
-policy_marker='# V5VPN-NC provisioning only'
-if [ ! -e "$policy" ] && [ ! -L "$policy" ]; then
-    # Package setup must not start a second, default IPsec service.
-    ( set -C; printf '#!/bin/sh\n%s\nexit 101\n' "$policy_marker" > "$policy" )
-fi
-if [ -f "$policy" ] && [ ! -L "$policy" ] && grep -Fxq "$policy_marker" "$policy"; then
-    trap 'if [ -f "$policy" ] && [ ! -L "$policy" ] && grep -Fxq "$policy_marker" "$policy"; then rm -f -- "$policy"; fi' EXIT
-    chmod 0755 "$policy"
-fi
-
-dpkg --configure -a
-apt-get update
-apt-get install -y --no-install-recommends \
-    strongswan-charon strongswan-swanctl libstrongswan-standard-plugins \
-    iproute2 iptables socat util-linux python3
-
-# Clean up default IPsec services if an earlier package setup installed them.
-if [ -d /run/systemd/system ]; then
-    for unit in strongswan.service strongswan-starter.service; do
-        if systemctl cat "$unit" >/dev/null 2>&1; then
-            systemctl disable --now "$unit"
-        fi
-    done
-fi
-
-test -x /usr/lib/ipsec/charon
-for plugin in kernel-netlink socket-default vici aes gmp hmac sha1; do
-    test -f "/usr/lib/ipsec/plugins/libstrongswan-$plugin.so"
-done
-for tool in swanctl ip iptables socat flock python3; do
-    command -v "$tool" >/dev/null
-done
-install -d -m 0755 /etc/v5vpn-nc
-touch /etc/v5vpn-nc/managed-ubuntu-24.04-v1
-dpkg-query -W strongswan-charon strongswan-swanctl
-'@
+    $installScript = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'wsl-nc-provision.sh') -Raw
 
     Write-Host 'Preparing strongSwan and route tooling in V5VPN-NC.'
     # The script is ASCII. Remove PowerShell's CRLF on the Linux side.

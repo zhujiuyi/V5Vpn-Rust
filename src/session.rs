@@ -27,6 +27,7 @@ pub struct ConnectionConfig {
     pub ca_file: Option<PathBuf>,
 }
 
+#[derive(Clone)]
 pub struct GatewayConfig {
     pub gateway: Url,
     pub username: String,
@@ -192,6 +193,17 @@ impl Session {
 
     pub fn has_web_resources(&self) -> bool {
         self.web_resources
+    }
+
+    #[cfg(windows)]
+    pub fn has_nc_authorization(&self) -> bool {
+        self.nc_policy.is_some()
+    }
+
+    #[cfg(windows)]
+    pub fn defer_nc(&mut self, error: anyhow::Error) {
+        self.nc_policy = None;
+        self.nc_error = Some(format!("{error:#}"));
     }
 
     pub fn nc_status(&self) -> NcStatus {

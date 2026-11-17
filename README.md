@@ -13,7 +13,7 @@ V5Vpn-Rust 是一个独立的 V5VPN 兼容客户端，使用 Rust 实现账号�
 
 | 平台 | 接入方式与验证状态 |
 | --- | --- |
-| Windows x64 | 桌面版以单个 EXE 分发，内置界面和图标，使用系统 WebView2。SSL VPN 网页访问、NC 授权内网访问和堡垒机远程桌面已在实际网关场景验证。 |
+| Windows x64 | 桌面版以单个 EXE 分发，内置界面和图标，并按需准备运行环境。SSL VPN 网页访问、NC 授权内网访问和堡垒机远程桌面已在实际网关场景验证。 |
 | Apple Silicon macOS | 适配目标包含 macOS 27。桌面端提供网页转发，NC/IPsec 通过管理员权限下的命令行联调。代码已通过 Apple Silicon 目标类型检查，真机联通性待验证。 |
 
 当前适用于使用国际算法、且仅要求账号口令的 V5VPN 网关。证书登录、匿名登录、国密和多因素认证尚未实现。可访问的资源和网段由网关当次授权决定。
@@ -22,7 +22,9 @@ V5Vpn-Rust 是一个独立的 V5VPN 兼容客户端，使用 Rust 实现账号�
 
 ### Windows
 
-构建需要 Rust MSVC 工具链和 Windows SDK，运行桌面客户端需要 Microsoft Edge WebView2 Runtime。从仓库根目录构建并启动桌面端。
+从 [GitHub Releases](https://github.com/zhujiuyi/V5Vpn-Rust/releases) 下载 `V5VPN-Rust.exe`，双击启动。客户端检测 Microsoft Edge WebView2 Evergreen Runtime，缺失时从微软下载并安装。安装需要网络连接。
+
+从源码构建需要 Rust MSVC 工具链和 Windows SDK。从仓库根目录构建并启动桌面端。
 
 ```powershell
 cargo build --locked --release --bin v5vpn-desktop
@@ -31,7 +33,9 @@ cargo build --locked --release --bin v5vpn-desktop
 
 在「系统设置」中填写网关名称、地址和端口，再用账号口令登录。SSL VPN 网页转发就绪后，可用常用浏览器访问授权网页。
 
-如需 NC/IPsec，先在管理员 PowerShell 中准备 WSL 组件。若系统要求重启，重启后再确认 WSL 状态。
+网关授予 NC/IPsec 资源后，桌面端会检查 WSL 2 和专用的 `V5VPN-NC` 环境，并按需下载、安装 Ubuntu 和 strongSwan 依赖。若当前进程需要提权，Windows 会提示管理员授权。授权时使用同一个 Windows 账号，随后在新窗口重新登录。如果 WSL 安装要求重启，请重启 Windows 后再次启动客户端。
+
+开发联调时也可以在管理员 PowerShell 中手动准备 WSL 组件。
 
 ```powershell
 wsl.exe --install --no-distribution --web-download

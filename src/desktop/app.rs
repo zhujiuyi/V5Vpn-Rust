@@ -28,6 +28,15 @@ use zeroize::Zeroizing;
 
 #[path = "connection.rs"]
 mod connection;
+#[cfg(windows)]
+#[path = "windows_nc_distribution.rs"]
+mod windows_nc_distribution;
+#[cfg(windows)]
+#[path = "windows_nc_host.rs"]
+mod windows_nc_host;
+#[cfg(windows)]
+#[path = "windows_webview2.rs"]
+mod windows_webview2;
 
 use connection::{Worker, WorkerEvent};
 
@@ -41,6 +50,11 @@ const ICON: &[u8] = include_bytes!("../../assets/v5vpn.png");
 const PAGE: &str = include_str!("../desktop.html");
 
 pub(super) fn run() -> Result<()> {
+    #[cfg(windows)]
+    {
+        windows_nc_host::verify_elevated_launch()?;
+        windows_webview2::ensure_runtime()?;
+    }
     let events = EventLoopBuilder::<AppEvent>::with_user_event().build();
     let event_proxy = events.create_proxy();
     let window = WindowBuilder::new()
@@ -537,11 +551,22 @@ impl Desktop {
                 }
             };
             match event {
+                #[cfg(windows)]
+                WorkerEvent::Preparing(message) if self.phase == Phase::Connecting => {
+                    self.notice = Some(message);
+                }
+                #[cfg(windows)]
+                WorkerEvent::Preparing(_) => {}
+                #[cfg(windows)]
+                WorkerEvent::Relaunched => {
+                    self.close_after_disconnect = true;
+                }
                 WorkerEvent::Connected {
                     web_resources,
                     nc_status,
                 } if self.phase == Phase::Connecting => {
                     self.phase = Phase::Online;
+                    self.notice = None;
                     self.connected_since = Some(Instant::now());
                     self.web_resources = web_resources;
                     self.nc_status = nc_status;
@@ -564,6 +589,7 @@ impl Desktop {
                     self.web_resources = false;
                     self.nc_status = NcStatus::NotGranted;
                     self.error = error;
+                    self.notice = None;
                 }
             }
         }
