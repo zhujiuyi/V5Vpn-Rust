@@ -28,6 +28,9 @@ use zeroize::Zeroizing;
 
 #[path = "connection.rs"]
 mod connection;
+#[cfg(target_os = "macos")]
+#[path = "macos_app.rs"]
+mod macos_app;
 #[cfg(windows)]
 #[path = "windows_nc_distribution.rs"]
 mod windows_nc_distribution;
@@ -57,6 +60,8 @@ pub(super) fn run() -> Result<()> {
     }
     let events = EventLoopBuilder::<AppEvent>::with_user_event().build();
     let event_proxy = events.create_proxy();
+    #[cfg(target_os = "macos")]
+    let macos_application = macos_app::MacApplication::new(event_proxy.clone())?;
     let window = WindowBuilder::new()
         .with_title(TITLE)
         .with_decorations(false)
@@ -136,6 +141,8 @@ pub(super) fn run() -> Result<()> {
     let startup_deadline = Instant::now() + Duration::from_secs(10);
     events.run(move |event, _, flow| {
         let _keep_web_context_alive = &web_context;
+        #[cfg(target_os = "macos")]
+        let _keep_macos_application_alive = &macos_application;
         if matches!(&event, Event::LoopDestroyed) {
             return;
         }
@@ -248,6 +255,8 @@ struct VisibleGateway {
     name: String,
     address: String,
     port: u16,
+    #[serde(default)]
+    gateway_cert_sha256: String,
 }
 
 impl From<&GatewayProfile> for VisibleGateway {
@@ -256,6 +265,7 @@ impl From<&GatewayProfile> for VisibleGateway {
             name: profile.name.clone(),
             address: profile.address.clone(),
             port: profile.port,
+            gateway_cert_sha256: profile.gateway_cert_sha256.clone(),
         }
     }
 }
@@ -416,22 +426,15 @@ impl Desktop {
             .enumerate()
             .map(|(index, visible)| {
                 let result = (|| {
-                    let mut profile = GatewayProfile {
+                    let profile = GatewayProfile {
                         name: visible.name.trim().to_owned(),
                         address: visible.address.trim().to_owned(),
                         port: visible.port,
-                        ..Default::default()
+                        gateway_cert_sha256: visible.gateway_cert_sha256.trim().to_owned(),
                     };
                     ensure!(!profile.name.is_empty(), "请填写网关名称");
-                    let endpoint = gateway_url(&profile)?;
-                    let pin = self.settings.profiles.iter().find_map(|old| {
-                        (!old.gateway_cert_sha256.trim().is_empty()
-                            && gateway_url(old).ok().as_ref() == Some(&endpoint))
-                        .then_some(&old.gateway_cert_sha256)
-                    });
-                    if let Some(pin) = pin {
-                        profile.gateway_cert_sha256.clone_from(pin);
-                    }
+                    gateway_url(&profile)?;
+                    profile.validate_certificate_pin()?;
                     Ok(profile)
                 })();
                 result.with_context(|| format!("第 {} 个网关配置无效", index + 1))

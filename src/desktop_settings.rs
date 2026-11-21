@@ -27,6 +27,16 @@ pub struct GatewayProfile {
     pub gateway_cert_sha256: String,
 }
 
+impl GatewayProfile {
+    pub fn validate_certificate_pin(&self) -> Result<()> {
+        let pin = self.gateway_cert_sha256.trim();
+        if !pin.is_empty() {
+            crate::gateway_tls::parse_fingerprint(pin)?;
+        }
+        Ok(())
+    }
+}
+
 impl Default for GatewayProfile {
     fn default() -> Self {
         Self {
@@ -174,5 +184,19 @@ mod tests {
         let (settings, rewrite) = decode(&rewritten).unwrap();
         assert!(!rewrite);
         assert_eq!(settings.profiles[0].gateway_cert_sha256, "example-pin");
+    }
+
+    #[test]
+    fn certificate_pin_round_trips_and_requires_valid_fingerprint() {
+        let mut profile = super::GatewayProfile::default();
+        assert!(profile.validate_certificate_pin().is_ok());
+        profile.gateway_cert_sha256 = vec!["AB"; 32].join(":");
+        let encoded = serde_json::to_vec(&profile).unwrap();
+        let restored: super::GatewayProfile = serde_json::from_slice(&encoded).unwrap();
+        assert_eq!(restored.gateway_cert_sha256, profile.gateway_cert_sha256);
+        assert!(restored.validate_certificate_pin().is_ok());
+
+        profile.gateway_cert_sha256 = "not-a-fingerprint".into();
+        assert!(profile.validate_certificate_pin().is_err());
     }
 }

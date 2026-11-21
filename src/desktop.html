@@ -1120,6 +1120,12 @@ body { display: block; min-height: 0; padding: 0; background: var(--bg); }
                 <p class="field-error" id="setPortError" hidden></p>
               </div>
               <div class="field">
+                <label for="setCertificate">网关证书 SHA-256 指纹（选填）</label>
+                <div class="input-shell" id="setCertificateShell"><input id="setCertificate" type="text" spellcheck="false" autocapitalize="off" placeholder="64 位十六进制，可用冒号分隔" aria-describedby="setCertificateHint setCertificateError"></div>
+                <p class="settings-hint" id="setCertificateHint" style="text-align:left">仅填写经网关管理员核对的指纹。留空使用系统证书验证；填写后只接受该证书。修改地址或端口会清空指纹。</p>
+                <p class="field-error" id="setCertificateError" hidden></p>
+              </div>
+              <div class="field">
                 <span class="field-label" id="algoLabel">算法标准</span>
                 <div class="radio-group" role="radiogroup" aria-labelledby="algoLabel">
                   <label class="radio"><input type="radio" name="algorithm" disabled>国密算法</label>
@@ -1191,6 +1197,7 @@ const profileFields = {
   name: byId("setName"),
   address: byId("setGateway"),
   port: byId("setPort"),
+  gateway_cert_sha256: byId("setCertificate"),
 };
 
 let state;
@@ -1337,11 +1344,13 @@ function focusAccount() {
 function openSettings() {
   if (state?.phase !== "offline" || pending) return;
   draft = {
-    profiles: state.profiles.map(({ name, address, port }) => ({ name, address, port: String(port) })),
+    profiles: state.profiles.map(({ name, address, port, gateway_cert_sha256 = "" }) => ({
+      name, address, port: String(port), gateway_cert_sha256,
+    })),
     selected: state.selected,
   };
   if (!draft.profiles.length) {
-    draft.profiles.push({ name: "", address: "", port: "443" });
+    draft.profiles.push({ name: "", address: "", port: "443", gateway_cert_sha256: "" });
     draft.selected = 0;
   }
   renderEditor();
@@ -1637,9 +1646,15 @@ byId("settingsBack").addEventListener("click", closeSettings);
 byId("cancelSettings").addEventListener("click", closeSettings);
 for (const [key, input] of Object.entries(profileFields)) {
   input.addEventListener("input", () => {
-    draft.profiles[draft.selected][key] = input.value;
+    const profile = draft.profiles[draft.selected];
+    profile[key] = input.value;
+    if (key === "address" || key === "port") {
+      profile.gateway_cert_sha256 = "";
+      profileFields.gateway_cert_sha256.value = "";
+      fieldError(profileFields.gateway_cert_sha256);
+    }
     fieldError(input);
-    if (key !== "port") updateEditorPicker();
+    if (key === "name" || key === "address") updateEditorPicker();
   });
 }
 editPicker.addEventListener("change", () => {
@@ -1653,7 +1668,7 @@ byId("addGateway").addEventListener("click", () => {
   if (!current.name.trim() && !current.address.trim()) {
     fieldError(profileFields.name, "请先填写当前网关，或直接编辑这条配置。");
   } else {
-    draft.selected = draft.profiles.push({ name: "", address: "", port: "443" }) - 1;
+    draft.selected = draft.profiles.push({ name: "", address: "", port: "443", gateway_cert_sha256: "" }) - 1;
     renderEditor();
   }
   profileFields.name.focus();
@@ -1670,10 +1685,11 @@ byId("removeGateway").addEventListener("click", () => {
 byId("settingsForm").addEventListener("submit", (event) => {
   event.preventDefault();
   if (pending || !draft) return;
-  const profiles = draft.profiles.map(({ name, address, port }) => ({
+  const profiles = draft.profiles.map(({ name, address, port, gateway_cert_sha256 }) => ({
     name: name.trim(),
     address: address.trim(),
     port: /^\d+$/.test(port.trim()) ? Number(port) : 0,
+    gateway_cert_sha256: gateway_cert_sha256.trim(),
   }));
   for (const [index, gateway] of profiles.entries()) {
     const issue = !gateway.name
@@ -1682,7 +1698,10 @@ byId("settingsForm").addEventListener("submit", (event) => {
         ? ["address", "请输入网关地址。"]
         : !Number.isInteger(gateway.port) || gateway.port < 1 || gateway.port > 65535
           ? ["port", "请输入 1 到 65535 之间的端口。"]
-          : null;
+          : gateway.gateway_cert_sha256 &&
+            !/^(?:[0-9a-f]{64}|(?:[0-9a-f]{2}:){31}[0-9a-f]{2})$/i.test(gateway.gateway_cert_sha256)
+            ? ["gateway_cert_sha256", "请输入 64 位十六进制 SHA-256 指纹，可用冒号分隔。"]
+            : null;
     if (issue) {
       draft.selected = index;
       renderEditor();

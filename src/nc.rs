@@ -13,7 +13,13 @@ mod platform;
 #[path = "nc_macos.rs"]
 mod platform;
 
-#[cfg(any(windows, target_os = "macos"))]
+#[cfg(target_os = "macos")]
+#[path = "nc_macos_elevated.rs"]
+pub(crate) mod elevated;
+
+#[cfg(target_os = "macos")]
+pub(crate) use elevated::Session;
+#[cfg(windows)]
 pub(crate) use platform::Session;
 
 #[cfg(windows)]
@@ -31,7 +37,7 @@ pub(crate) async fn start(
     gateway_host: &str,
     _proxy: Arc<Proxy>,
 ) -> Result<Session> {
-    platform::start(policy, gateway_host).await
+    elevated::start(policy, gateway_host).await
 }
 
 #[cfg(not(any(windows, target_os = "macos")))]

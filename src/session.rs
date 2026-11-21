@@ -218,7 +218,16 @@ impl Session {
 
     pub async fn start_nc(&mut self) -> Result<()> {
         if let Some(policy) = self.nc_policy.take() {
-            match nc::start(policy, self.gateway.host(), self.proxy.clone()).await {
+            #[cfg(target_os = "macos")]
+            let started = tokio::select! {
+                result = nc::start(policy, self.gateway.host(), self.proxy.clone()) => result,
+                result = self.proxy.keepalive() => {
+                    result.and(Err(anyhow::anyhow!("等待管理员授权期间网关保活已停止")))
+                }
+            };
+            #[cfg(not(target_os = "macos"))]
+            let started = nc::start(policy, self.gateway.host(), self.proxy.clone()).await;
+            match started {
                 Ok(session) => self.nc = Some(session),
                 Err(error) => self.nc_error = Some(format!("{error:#}")),
             }

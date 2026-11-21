@@ -5,7 +5,7 @@ use std::{
     net::{IpAddr, Ipv4Addr, UdpSocket},
     os::{
         fd::{FromRawFd, OwnedFd},
-        unix::fs::OpenOptionsExt,
+        unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt},
     },
     path::Path,
     process::Stdio,
@@ -40,17 +40,14 @@ pub(crate) struct Session {
 }
 
 pub(crate) async fn start(mut policy: NcPolicy, gateway_host: &str) -> Result<Session> {
-    // Root is required by the native kernel for utun, PF_KEY and routes. There
-    // is no embedded password prompt or automatic privilege elevation.
-    ensure!(
-        unsafe { geteuid() } == 0,
-        "macOS NC 需要管理员在终端授权启动命令行客户端；桌面版可继续使用网页转发"
-    );
+    // The desktop starts this backend inside the per-session authorized helper.
+    ensure!(unsafe { geteuid() } == 0, "macOS NC 网络组件需要管理员授权");
     ensure!(
         Path::new(CHARON).is_file(),
         "未找到 Apple Silicon Homebrew strongSwan，请先在 Mac 上安装 strongswan"
     );
     let lock = session_lock()?;
+    recover_stale_daemon().await?;
     ensure!(
         !Path::new("/private/var/run/charon.pid").try_exists()?,
         "系统已有 strongSwan 实例或 PID 记录，无法启动独立的 NC 实例"
@@ -65,18 +62,20 @@ pub(crate) async fn start(mut policy: NcPolicy, gateway_host: &str) -> Result<Se
             .any(|route| route.prefix == 32 && route.network == policy.virtual_ip),
         "NC 授权路由与会话虚拟地址冲突，已停止配置"
     );
-    let natt_port = system_esp_port().await?;
+    let original_natt_port = system_esp_port().await?;
+    let natt_port = select_natt_port(original_natt_port);
     ensure!(
         natt_port != policy.server_port,
         "系统 NAT-T 端口与 NC IKE 端口冲突，已停止配置"
     );
-    // The original session used the gateway's nonstandard port on both sides
-    // of the initial IKE exchange. Keep the existing macOS ESP socket port.
+    // Keep an existing macOS ESP port. When it is unset, kernel-pfkey will
+    // initialize it to the selected NAT-T port as the private daemon starts.
     check_udp_port(policy.server_port)?;
     check_udp_port(natt_port)?;
     let interface = Utun::open()?;
     interface.set_address(policy.virtual_ip).await?;
-    let (mut daemon, stream) = Daemon::start(policy.server_port, natt_port).await?;
+    let (mut daemon, stream) =
+        Daemon::start(policy.server_port, natt_port, original_natt_port).await?;
     let mut client = Vici::new(stream);
 
     let established = client.establish(&policy, peer).await;
@@ -147,6 +146,72 @@ fn session_lock() -> Result<File> {
     }
 }
 
+async fn recover_stale_daemon() -> Result<()> {
+    let pid_file = Path::new(RUN_DIR).join("charon.pid");
+    let metadata = match std::fs::symlink_metadata(&pid_file) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.into()),
+    };
+    ensure!(
+        metadata.is_file() && metadata.uid() == 0 && metadata.mode() & 0o022 == 0,
+        "现有 strongSwan PID 文件身份无效"
+    );
+    let pid_text = std::fs::read_to_string(&pid_file)?;
+    let pid: c_int = pid_text
+        .trim()
+        .parse()
+        .context("现有 strongSwan PID 无效")?;
+    ensure!(pid > 1, "现有 strongSwan PID 无效");
+
+    let mut process = Command::new("/bin/ps");
+    process.args(["-p", &pid.to_string(), "-o", "ppid=", "-o", "comm="]);
+    let identity = command_output(process, "无法核对现有 strongSwan 进程").await?;
+    let fields: Vec<_> = identity.split_whitespace().collect();
+    ensure!(
+        fields.len() == 2
+            && fields[0] == "1"
+            && std::fs::canonicalize(fields[1])? == std::fs::canonicalize(CHARON)?,
+        "已有活动的 IPsec 引擎，请先断开原 VPN 会话"
+    );
+
+    let mut sockets = Command::new("/usr/sbin/lsof");
+    sockets.args(["-nP", "-a", "-p", &pid.to_string(), "-U", "-Fn"]);
+    let sockets = command_output(sockets, "无法核对孤立 NC 引擎的控制通道").await?;
+    let private_directory = sockets
+        .lines()
+        .filter_map(|line| line.strip_prefix('n'))
+        .map(Path::new)
+        .filter(|socket| socket.file_name().is_some_and(|name| name == "vici"))
+        .filter_map(|socket| socket.parent())
+        .find(|directory| {
+            directory.parent() == Some(Path::new(RUN_DIR))
+                && directory
+                    .file_name()
+                    .is_some_and(|name| name.to_string_lossy().starts_with("v5vpn-nc-"))
+                && std::fs::symlink_metadata(directory)
+                    .is_ok_and(|data| data.is_dir() && data.uid() == 0 && data.mode() & 0o022 == 0)
+                && std::fs::symlink_metadata(directory.join("strongswan.conf"))
+                    .is_ok_and(|data| data.is_file() && data.uid() == 0 && data.mode() & 0o022 == 0)
+        })
+        .context("现有 IPsec 引擎不属于可回收的 V5VPN 会话")?
+        .to_path_buf();
+    ensure!(
+        unsafe { kill(pid, 15) } == 0,
+        "无法结束孤立的 V5VPN NC 引擎"
+    );
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while unsafe { kill(pid, 0) } == 0 {
+        ensure!(Instant::now() < deadline, "等待孤立 NC 引擎退出超时");
+        sleep(Duration::from_millis(80)).await;
+    }
+    if std::fs::read_to_string(&pid_file).is_ok_and(|value| value.trim() == pid.to_string()) {
+        std::fs::remove_file(&pid_file)?;
+    }
+    std::fs::remove_dir_all(private_directory).context("无法清理孤立 NC 引擎目录")?;
+    Ok(())
+}
+
 async fn system_esp_port() -> Result<u16> {
     let mut command = Command::new("/usr/sbin/sysctl");
     command.args(["-n", "net.inet.ipsec.esp_port"]);
@@ -155,8 +220,130 @@ async fn system_esp_port() -> Result<u16> {
         .trim()
         .parse::<u16>()
         .context("系统 IPsec NAT-T 端口无效")?;
-    ensure!(port != 0, "系统未配置可保留的 NAT-T 端口");
     Ok(port)
+}
+
+fn select_natt_port(current: u16) -> u16 {
+    if current == 0 { 4500 } else { current }
+}
+
+fn read_esp_port() -> Result<u16> {
+    let mut value: c_int = 0;
+    let mut size = size_of::<c_int>();
+    let status = unsafe {
+        sysctlbyname(
+            c"net.inet.ipsec.esp_port".as_ptr(),
+            std::ptr::from_mut(&mut value).cast(),
+            &mut size,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    if status != 0 {
+        return Err(io::Error::last_os_error()).context("无法读取系统 IPsec NAT-T 端口");
+    }
+    ensure!(size == size_of::<c_int>(), "系统 IPsec NAT-T 端口长度无效");
+    u16::try_from(value).context("系统 IPsec NAT-T 端口无效")
+}
+
+fn write_esp_port(port: u16) -> Result<()> {
+    let mut value = c_int::from(port);
+    let status = unsafe {
+        sysctlbyname(
+            c"net.inet.ipsec.esp_port".as_ptr(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::from_mut(&mut value).cast(),
+            size_of::<c_int>(),
+        )
+    };
+    if status != 0 {
+        return Err(io::Error::last_os_error()).context("无法恢复系统 IPsec NAT-T 端口");
+    }
+    Ok(())
+}
+
+fn restore_natt_port(
+    selected: u16,
+    original: u16,
+    read: impl FnOnce() -> Result<u16>,
+    write: impl FnOnce(u16) -> Result<()>,
+) -> Result<()> {
+    if selected == original {
+        return Ok(());
+    }
+    let current = read()?;
+    if current == original {
+        return Ok(());
+    }
+    ensure!(
+        current == selected,
+        "系统 IPsec NAT-T 端口已被其他进程更改，保留当前配置"
+    );
+    write(original)
+}
+
+#[cfg(test)]
+mod natt_tests {
+    use super::*;
+
+    #[test]
+    fn unset_port_selects_standard_natt_and_preserves_existing_port() {
+        assert_eq!(select_natt_port(0), 4500);
+        assert_eq!(select_natt_port(5500), 5500);
+    }
+
+    #[test]
+    fn owned_natt_change_is_restored() {
+        let written = std::cell::Cell::new(None);
+        restore_natt_port(
+            4500,
+            0,
+            || Ok(4500),
+            |port| {
+                written.set(Some(port));
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(written.get(), Some(0));
+    }
+
+    #[test]
+    fn unchanged_and_already_restored_ports_are_not_written() {
+        restore_natt_port(5500, 5500, || panic!("无需读取"), |_| panic!("无需写入")).unwrap();
+        restore_natt_port(4500, 0, || Ok(0), |_| panic!("无需重复恢复")).unwrap();
+    }
+
+    #[test]
+    fn another_process_port_change_is_preserved() {
+        let result = restore_natt_port(4500, 0, || Ok(5500), |_| panic!("不可覆盖其他配置"));
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    #[ignore = "需要管理员权限；检查本机 NC 引擎，不连接网关或提交口令"]
+    async fn private_daemon_initializes_and_restores_natt_port() -> Result<()> {
+        ensure!(unsafe { geteuid() } == 0, "此检查需要管理员权限");
+        let _lock = session_lock()?;
+        ensure!(
+            !Path::new("/private/var/run/charon.pid").try_exists()?,
+            "已有 strongSwan 实例，跳过引擎自检"
+        );
+        let original = read_esp_port()?;
+        let selected = select_natt_port(original);
+        check_udp_port(selected)?;
+        let socket = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0))?;
+        let ike_port = socket.local_addr()?.port();
+        drop(socket);
+        let (mut daemon, stream) = Daemon::start(ike_port, selected, original).await?;
+        drop(stream);
+        let active_port = read_esp_port();
+        daemon.stop().await?;
+        ensure!(active_port? == selected, "引擎未初始化所选的 NAT-T 端口");
+        ensure!(read_esp_port()? == original, "引擎退出后 NAT-T 端口未恢复");
+        Ok(())
+    }
 }
 
 fn check_udp_port(port: u16) -> Result<()> {
@@ -169,14 +356,21 @@ fn check_udp_port(port: u16) -> Result<()> {
 struct Daemon {
     child: Child,
     _directory: tempfile::TempDir,
+    natt_port: u16,
+    original_natt_port: u16,
 }
 
 impl Daemon {
-    async fn start(ike_port: u16, natt_port: u16) -> Result<(Self, UnixStream)> {
+    async fn start(
+        ike_port: u16,
+        natt_port: u16,
+        original_natt_port: u16,
+    ) -> Result<(Self, UnixStream)> {
         let directory = tempfile::Builder::new()
             .prefix("v5vpn-nc-")
             .tempdir_in(RUN_DIR)
             .context("无法创建私有 NC 引擎目录")?;
+        std::fs::set_permissions(directory.path(), std::fs::Permissions::from_mode(0o700))?;
         let socket = directory.path().join("vici");
         let config = directory.path().join("strongswan.conf");
         // Only runtime settings go into this root-owned temporary file.
@@ -207,6 +401,8 @@ impl Daemon {
         let mut daemon = Self {
             child,
             _directory: directory,
+            natt_port,
+            original_natt_port,
         };
         let expires = Instant::now() + Duration::from_secs(8);
         while Instant::now() < expires {
@@ -237,18 +433,32 @@ impl Daemon {
 
     async fn stop(&mut self) -> Result<()> {
         self.signal_stop()?;
-        // Give charon a chance to remove its kernel policies before releasing
-        // the utun. An indiscriminate kill/flush would risk other VPN traffic.
+        // Restore the global NAT-T setting only after our daemon has exited.
         timeout(Duration::from_secs(10), self.child.wait())
             .await
             .context("等待 strongSwan 清理路由和 SA 超时")??;
-        Ok(())
+        restore_natt_port(
+            self.natt_port,
+            self.original_natt_port,
+            read_esp_port,
+            write_esp_port,
+        )
     }
 }
 
 impl Drop for Daemon {
     fn drop(&mut self) {
         let _ = self.signal_stop();
+        if matches!(self.child.try_wait(), Ok(Some(_)))
+            && let Err(error) = restore_natt_port(
+                self.natt_port,
+                self.original_natt_port,
+                read_esp_port,
+                write_esp_port,
+            )
+        {
+            eprintln!("恢复 macOS NC 的 NAT-T 配置失败：{error:#}");
+        }
     }
 }
 
@@ -506,6 +716,13 @@ struct SockAddrCtl {
 const _: () = assert!(size_of::<CtlInfo>() == 100 && size_of::<SockAddrCtl>() == 32);
 
 unsafe extern "C" {
+    fn sysctlbyname(
+        name: *const std::ffi::c_char,
+        old_value: *mut c_void,
+        old_size: *mut usize,
+        new_value: *mut c_void,
+        new_size: usize,
+    ) -> c_int;
     fn geteuid() -> u32;
     fn socket(domain: c_int, kind: c_int, protocol: c_int) -> c_int;
     fn fcntl(fd: c_int, command: c_int, ...) -> c_int;

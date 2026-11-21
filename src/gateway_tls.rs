@@ -61,7 +61,7 @@ impl GatewayTls {
     }
 }
 
-fn parse_fingerprint(fingerprint: &str) -> Result<[u8; 32]> {
+pub(crate) fn parse_fingerprint(fingerprint: &str) -> Result<[u8; 32]> {
     const INVALID: &str = "网关证书指纹必须是 32 个十六进制字节，可用冒号分隔";
     let fingerprint = fingerprint.trim();
     let compact = if fingerprint.contains(':') {
@@ -83,4 +83,71 @@ fn parse_fingerprint(fingerprint: &str) -> Result<[u8; 32]> {
         *octet = u8::from_str_radix(&compact[offset..offset + 2], 16).context(INVALID)?;
     }
     Ok(hash)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_compact_and_colon_separated_fingerprints() {
+        let compact = "ab".repeat(32);
+        let separated = vec!["AB"; 32].join(":");
+        assert_eq!(parse_fingerprint(&compact).unwrap(), [0xab; 32]);
+        assert_eq!(
+            parse_fingerprint(&format!("  {separated}  ")).unwrap(),
+            [0xab; 32]
+        );
+    }
+
+    #[test]
+    fn rejects_malformed_fingerprints() {
+        for invalid in [
+            String::new(),
+            "a".repeat(63),
+            "a".repeat(65),
+            "gg".repeat(32),
+            vec!["a"; 32].join(":"),
+            vec!["aa"; 31].join(":"),
+            format!("{}:", vec!["aa"; 32].join(":")),
+            "é".repeat(32),
+        ] {
+            assert!(parse_fingerprint(&invalid).is_err(), "{invalid}");
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "需要 V5VPN_TEST_GATEWAY 和 V5VPN_TEST_GATEWAY_CERT_SHA256；仅探测 TLS，不登录"]
+    async fn matching_pin_connects_and_changed_pin_is_rejected() -> Result<()> {
+        let gateway = Url::parse(&std::env::var("V5VPN_TEST_GATEWAY")?)?;
+        let fingerprint = std::env::var("V5VPN_TEST_GATEWAY_CERT_SHA256")?;
+        let matching = GatewayTls::new(None, Some(&fingerprint))?;
+        let stream =
+            tokio::time::timeout(std::time::Duration::from_secs(10), matching.open(&gateway))
+                .await
+                .context("匹配指纹的 TLS 探测超时")??;
+        drop(stream);
+
+        let mut changed = parse_fingerprint(&fingerprint)?;
+        changed[0] ^= 1;
+        let changed = changed
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        let mismatched = GatewayTls::new(None, Some(&changed))?;
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            mismatched.open(&gateway),
+        )
+        .await
+        .context("不匹配指纹的 TLS 探测超时")?;
+        match result {
+            Err(error) => ensure!(
+                error.to_string().contains("指纹不匹配"),
+                "连接未因指纹不匹配而被拒绝：{error:#}"
+            ),
+            Ok(_) => anyhow::bail!("不匹配的证书指纹不应获得可用的 TLS 连接"),
+        }
+        Ok(())
+    }
 }

@@ -13,4 +13,6 @@ mod proxy;
 pub mod session;
 mod system_proxy;
 
+#[cfg(target_os = "macos")]
+pub use nc::elevated::run_helper as run_macos_nc_helper;
 pub use system_proxy::SystemProxyGuard;

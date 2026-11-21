@@ -93,7 +93,17 @@ async fn run_session(
         return session.disconnect().await;
     }
 
-    if let Err(error) = session.start_nc().await {
+    #[cfg(target_os = "macos")]
+    let nc_result = tokio::select! {
+        result = session.start_nc() => Some(result),
+        _ = &mut stop => None,
+    };
+    #[cfg(not(target_os = "macos"))]
+    let nc_result = Some(session.start_nc().await);
+    let Some(nc_result) = nc_result else {
+        return session.disconnect().await;
+    };
+    if let Err(error) = nc_result {
         let _ = session.disconnect().await;
         return Err(error);
     }
