@@ -7,7 +7,7 @@ use std::{
         fd::{FromRawFd, OwnedFd},
         unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt},
     },
-    path::Path,
+    path::{Path, PathBuf},
     process::Stdio,
     time::Duration,
 };
@@ -39,13 +39,71 @@ pub(crate) struct Session {
     _lock: File,
 }
 
+const REQUIRED_RUNTIME_FILES: &[&str] = &[
+    "bin/charon",
+    "lib/libstrongswan.0.dylib",
+    "lib/libcharon.0.dylib",
+    "lib/libcrypto.4.dylib",
+    "openssl.cnf",
+    "lib/plugins/libstrongswan-openssl.so",
+    "lib/plugins/libstrongswan-kdf.so",
+    "lib/plugins/libstrongswan-nonce.so",
+    "lib/plugins/libstrongswan-kernel-pfkey.so",
+    "lib/plugins/libstrongswan-kernel-pfroute.so",
+    "lib/plugins/libstrongswan-socket-default.so",
+    "lib/plugins/libstrongswan-vici.so",
+    "lib/ossl-modules/legacy.dylib",
+];
+
+pub(super) struct Runtime {
+    pub(super) executable: PathBuf,
+    root: Option<PathBuf>,
+}
+
+pub(super) fn runtime() -> Result<Runtime> {
+    runtime_for(&std::env::current_exe()?, Path::new(CHARON))
+}
+
+fn runtime_for(executable: &Path, fallback: &Path) -> Result<Runtime> {
+    let contents = executable
+        .parent()
+        .and_then(Path::parent)
+        .context("无法定位 NC 运行组件")?;
+    let root = contents.join("Resources/NC");
+    if root.exists() {
+        for relative in REQUIRED_RUNTIME_FILES {
+            ensure!(
+                root.join(relative).is_file(),
+                "应用包中的 NC 运行组件不完整，请重新安装"
+            );
+        }
+        return Ok(Runtime {
+            executable: root.join("bin/charon"),
+            root: Some(root),
+        });
+    }
+    ensure!(
+        fallback.is_file(),
+        "缺少 NC 运行组件，请使用完整的 macOS 安装包；源码运行可安装 Homebrew strongSwan"
+    );
+    Ok(Runtime {
+        executable: fallback.to_path_buf(),
+        root: None,
+    })
+}
+
+fn known_engine(path: &Path) -> bool {
+    path.ends_with("Contents/Resources/NC/bin/charon")
+        || std::fs::canonicalize(path)
+            .ok()
+            .zip(std::fs::canonicalize(CHARON).ok())
+            .is_some_and(|(actual, expected)| actual == expected)
+}
+
 pub(crate) async fn start(mut policy: NcPolicy, gateway_host: &str) -> Result<Session> {
     // The desktop starts this backend inside the per-session authorized helper.
     ensure!(unsafe { geteuid() } == 0, "macOS NC 网络组件需要管理员授权");
-    ensure!(
-        Path::new(CHARON).is_file(),
-        "未找到 Apple Silicon Homebrew strongSwan，请先在 Mac 上安装 strongswan"
-    );
+    runtime()?;
     let lock = session_lock()?;
     recover_stale_daemon().await?;
     ensure!(
@@ -169,9 +227,7 @@ async fn recover_stale_daemon() -> Result<()> {
     let identity = command_output(process, "无法核对现有 strongSwan 进程").await?;
     let fields: Vec<_> = identity.split_whitespace().collect();
     ensure!(
-        fields.len() == 2
-            && fields[0] == "1"
-            && std::fs::canonicalize(fields[1])? == std::fs::canonicalize(CHARON)?,
+        fields.len() == 2 && fields[0] == "1" && known_engine(Path::new(fields[1])),
         "已有活动的 IPsec 引擎，请先断开原 VPN 会话"
     );
 
@@ -321,6 +377,31 @@ mod natt_tests {
         assert!(result.is_err());
     }
 
+    #[test]
+    fn bundled_runtime_is_preferred_and_incomplete_bundle_is_rejected() -> Result<()> {
+        let folder = tempfile::tempdir()?;
+        let contents = folder.path().join("V5VPN Test.app/Contents");
+        let executable = contents.join("MacOS/v5vpn-nc-helper");
+        let fallback = folder.path().join("homebrew-charon");
+        std::fs::write(&fallback, [])?;
+        let plain = runtime_for(&executable, &fallback)?;
+        assert_eq!(plain.executable, fallback);
+        assert!(plain.root.is_none());
+
+        let root = contents.join("Resources/NC");
+        std::fs::create_dir_all(&root)?;
+        assert!(runtime_for(&executable, &fallback).is_err());
+        for file in REQUIRED_RUNTIME_FILES {
+            let path = root.join(file);
+            std::fs::create_dir_all(path.parent().unwrap())?;
+            std::fs::write(path, [])?;
+        }
+        let bundled = runtime_for(&executable, &fallback)?;
+        assert_eq!(bundled.executable, root.join("bin/charon"));
+        assert_eq!(bundled.root, Some(root));
+        Ok(())
+    }
+
     #[tokio::test]
     #[ignore = "需要管理员权限；检查本机 NC 引擎，不连接网关或提交口令"]
     async fn private_daemon_initializes_and_restores_natt_port() -> Result<()> {
@@ -389,15 +470,22 @@ impl Daemon {
             ),
         )
         .context("无法准备 macOS NC 引擎配置")?;
-        let child = Command::new(CHARON)
+        let runtime = runtime()?;
+        let mut command = Command::new(&runtime.executable);
+        command
             .env_clear()
             .env("STRONGSWAN_CONF", config)
             .current_dir(directory.path())
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .context("无法启动原生 strongSwan 引擎")?;
+            .stderr(Stdio::null());
+        if let Some(root) = &runtime.root {
+            command
+                .current_dir(root.join("lib"))
+                .env("OPENSSL_MODULES", root.join("lib/ossl-modules"))
+                .env("OPENSSL_CONF", root.join("openssl.cnf"));
+        }
+        let child = command.spawn().context("无法启动原生 strongSwan 引擎")?;
         let mut daemon = Self {
             child,
             _directory: directory,

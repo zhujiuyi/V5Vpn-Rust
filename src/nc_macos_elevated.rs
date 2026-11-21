@@ -5,7 +5,7 @@ use std::{
         fd::AsRawFd,
         unix::fs::{MetadataExt, PermissionsExt},
     },
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::Stdio,
     time::Duration,
 };
@@ -242,10 +242,7 @@ pub(crate) async fn start(policy: NcPolicy, gateway_host: &str) -> Result<Sessio
             .await
             .map(|session| Session::Local(Box::new(session)));
     }
-    ensure!(
-        Path::new("/opt/homebrew/opt/strongswan/libexec/ipsec/charon").is_file(),
-        "NC 运行组件尚未安装，请先安装 strongSwan"
-    );
+    platform::runtime()?;
     let helper = std::env::current_exe()?.with_file_name("v5vpn-nc-helper");
     ensure!(
         helper.is_file(),

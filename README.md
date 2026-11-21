@@ -54,7 +54,11 @@ wsl.exe --status
 
 ### Apple Silicon macOS
 
-源码构建需要 Rust 工具链和 Xcode 命令行工具。NC/IPsec 使用 Apple Silicon Homebrew 的 strongSwan，首次使用前安装运行组件并构建完整应用包：
+从 [macOS 发布页](https://github.com/zhujiuyi/V5Vpn-Rust/releases/tag/v0.1.1-macos) 下载 [DMG 安装包](https://github.com/zhujiuyi/V5Vpn-Rust/releases/download/v0.1.1-macos/V5VPN-macOS-arm64-v0.1.1.dmg) 或 [ZIP 压缩包](https://github.com/zhujiuyi/V5Vpn-Rust/releases/download/v0.1.1-macos/V5VPN-macOS-arm64-v0.1.1.zip)，将完整的 `V5VPN.app` 放入「应用程序」目录后打开。安装包适用于 Apple Silicon、macOS 27.0 或以上，内置 strongSwan、OpenSSL 和 NC 辅助程序，使用者无需安装 Rust 或 Homebrew。
+
+本构建使用临时签名（ad-hoc），没有 Apple Developer ID 签名，也未经过 Apple 公证。首次打开可能被系统拦截，请先核对发布页提供的 SHA-256 和下载来源，再参阅 [Apple 官方说明](https://support.apple.com/102445)，在「隐私与安全性」中按系统提示批准应用。
+
+从源码构建时，需要 Rust、Xcode 命令行工具和 Homebrew 运行库。打包脚本会将运行库重定位并放入应用包：
 
 ```sh
 brew install strongswan
@@ -62,7 +66,7 @@ brew install strongswan
 open ./target/aarch64-apple-darwin/release/V5VPN.app
 ```
 
-构建结果位于 `target/aarch64-apple-darwin/release/V5VPN.app`。可将完整应用包拖入「应用程序」目录，之后从访达或 Dock 打开。首次安装 strongSwan 后，日常登录和退出均在桌面端完成。
+构建结果位于 `target/aarch64-apple-darwin/release/V5VPN.app`。可将完整应用包拖入「应用程序」目录，之后从访达或 Dock 打开。日常登录和退出均在桌面端完成。
 
 在「系统设置」中填写网关名称、IP 或域名和端口，再返回桌面登录页输入 VPN 账号口令。网关授予 NC 资源时，客户端通过系统管理员授权窗口启动本次会话的 NC 辅助程序；在该窗口输入 macOS 管理员密码，授权后自动建立隧道。VPN 口令在桌面登录页输入，已保存的口令从用户钥匙串读取。若取消管理员授权，NC 显示未连接，已有 SSL 授权仍可用于网页转发。
 
@@ -70,7 +74,7 @@ open ./target/aarch64-apple-darwin/release/V5VPN.app
 
 主界面与钥匙串操作保持普通用户权限，管理员辅助程序只负责 NC 网络配置。控制通道核对用户和进程身份，NC 会话密钥通过内存通道传输。断开、关闭窗口或控制通道消失后，辅助程序清理本次路由、IPsec 状态和引擎进程；启动时会识别并回收属于 V5VPN 的孤立引擎。
 
-`package-macos.sh` 会一并打包桌面程序、`v5vpn-nc-helper` 和包含多种尺寸的 ICNS 图标。使用时保留完整的 `.app` 包，脚本生成的应用包使用本机临时签名。
+`package-macos.sh` 会一并打包桌面程序、`v5vpn-nc-helper`、ICNS 图标，以及重定位后的 strongSwan/OpenSSL 运行组件。使用时保留完整的 `.app` 包。第三方许可证位于 `Contents/Resources/NC/licenses`，同一 Release 提供对应的上游源码、SHA-256 和构建配方。
 
 当前 macOS 构建目标为 Apple Silicon（`aarch64-apple-darwin`），已在 macOS 27.2 真机验证管理员授权、NC 隧道、授权 HTTP 网页访问、`Command+Q` 退出及网络清理。Intel Mac 和 macOS 下的远程桌面连接未纳入本轮验证。
 

@@ -13,6 +13,8 @@ mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
 cp "$release_dir/v5vpn-desktop" "$bundle/Contents/MacOS/"
 cp "$release_dir/v5vpn-nc-helper" "$bundle/Contents/MacOS/"
 cp assets/v5vpn.png "$bundle/Contents/Resources/"
+./support/bundle-macos-runtime.sh "$bundle/Contents/Resources/NC"
+package_version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)"
 iconset="$stage/V5VPN.iconset"
 mkdir -p "$iconset"
 for points in 16 32 128 256 512; do
@@ -21,7 +23,7 @@ for points in 16 32 128 256 512; do
   /usr/bin/sips -s format png -z "$pixels" "$pixels" assets/v5vpn.png --out "$iconset/icon_${points}x${points}@2x.png" >/dev/null
 done
 /usr/bin/iconutil -c icns "$iconset" -o "$bundle/Contents/Resources/AppIcon.icns"
-cat > "$bundle/Contents/Info.plist" <<'PLIST'
+cat > "$bundle/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -33,8 +35,9 @@ cat > "$bundle/Contents/Info.plist" <<'PLIST'
   <key>CFBundleName</key><string>V5VPN</string>
   <key>CFBundleIconFile</key><string>AppIcon.icns</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.1.0</string>
-  <key>CFBundleVersion</key><string>1</string>
+  <key>CFBundleShortVersionString</key><string>$package_version</string>
+  <key>CFBundleVersion</key><string>$package_version</string>
+  <key>LSMinimumSystemVersion</key><string>27.0</string>
   <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
 PLIST
